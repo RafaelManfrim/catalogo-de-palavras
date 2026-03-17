@@ -9,11 +9,25 @@ datasource db {
 
 model Word {
   id        Int      @id @default(autoincrement())
-  text      String   @unique
+  text      String
   stars     Int      @default(0)
   studied   Boolean  @default(false)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@unique([text, userId])
   @@map("words")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  words        Word[]
+
+  @@map("users")
 }

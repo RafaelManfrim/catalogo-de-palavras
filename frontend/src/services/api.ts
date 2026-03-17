@@ -9,6 +9,16 @@ export interface Word {
   updatedAt: string;
 }
 
+export interface User {
+  id: number;
+  email: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 export interface Stats {
   totalWords: number;
   studiedWords: number;
@@ -20,6 +30,14 @@ const http = axios.create({
   baseURL: "/api",
   headers: { "Content-Type": "application/json" },
 });
+
+export function setAuthToken(token: string | null) {
+  if (token) {
+    http.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete http.defaults.headers.common.Authorization;
+  }
+}
 
 type ApiError = {
   status: number;
@@ -54,6 +72,27 @@ export const api = {
     return http
       .get<Word[]>("/words", { params: { q, sort, order } })
       .then((res) => res.data)
+      .catch(normalizeError);
+  },
+
+  register(email: string, password: string) {
+    return http
+      .post<AuthResponse>("/auth/register", { email, password })
+      .then((res) => res.data)
+      .catch(normalizeError);
+  },
+
+  login(email: string, password: string) {
+    return http
+      .post<AuthResponse>("/auth/login", { email, password })
+      .then((res) => res.data)
+      .catch(normalizeError);
+  },
+
+  me() {
+    return http
+      .get<{ user: User }>("/auth/me")
+      .then((res) => res.data.user)
       .catch(normalizeError);
   },
 

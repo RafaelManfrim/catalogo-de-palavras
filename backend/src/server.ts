@@ -1,13 +1,28 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import jwt from "@fastify/jwt";
+import { authRoutes } from "./routes/auth.js";
 import { wordRoutes } from "./routes/words.js";
 
 const app = Fastify({ logger: true });
+
+app.register(jwt, {
+  secret: process.env.JWT_SECRET || "catalogo-dev-secret",
+});
+
+app.decorate("authenticate", async function (request, reply) {
+  try {
+    await request.jwtVerify();
+  } catch {
+    return reply.status(401).send({ error: "Unauthorized" });
+  }
+});
 
 app.register(cors, {
   origin: "http://localhost:5173",
 });
 
+app.register(authRoutes);
 app.register(wordRoutes);
 
 app.get("/health", async () => ({ status: "ok" }));

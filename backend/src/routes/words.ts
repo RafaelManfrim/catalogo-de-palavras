@@ -2,10 +2,14 @@ import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 
 export async function wordRoutes(app: FastifyInstance) {
+  const auth = { preHandler: app.authenticate };
+
   // GET /words — list all words, optional search with ?q=
   app.get<{ Querystring: { q?: string; sort?: string; order?: string } }>(
     "/words",
-    async (request) => {
+    auth,
+    async (request: any) => {
+      const userId = request.user.id as number;
       const { q, sort = "createdAt", order = "desc" } = request.query;
 
       const allowedSort = ["text", "stars", "createdAt", "studied"] as const;
@@ -15,9 +19,12 @@ export async function wordRoutes(app: FastifyInstance) {
       const sortOrder = order === "asc" ? "asc" : "desc";
 
       const words = await prisma.word.findMany({
-        where: q
-          ? { text: { contains: q.toLowerCase(), mode: "insensitive" } }
-          : undefined,
+        where: {
+          userId,
+          ...(q
+            ? { text: { contains: q.toLowerCase(), mode: "insensitive" } }
+            : {}),
+        },
         orderBy: { [sortField]: sortOrder },
       });
 
@@ -28,12 +35,17 @@ export async function wordRoutes(app: FastifyInstance) {
   // GET /words/search?q= — lightweight search for autocomplete
   app.get<{ Querystring: { q: string } }>(
     "/words/search",
-    async (request) => {
+    auth,
+    async (request: any) => {
+      const userId = request.user.id as number;
       const { q } = request.query;
       if (!q || q.trim().length === 0) return [];
 
       const words = await prisma.word.findMany({
-        where: { text: { startsWith: q.toLowerCase(), mode: "insensitive" } },
+        where: {
+          userId,
+          text: { startsWith: q.toLowerCase(), mode: "insensitive" },
+        },
         orderBy: { text: "asc" },
         take: 10,
       });
@@ -43,12 +55,13 @@ export async function wordRoutes(app: FastifyInstance) {
   );
 
   // GET /words/stats — aggregate stats
-  app.get("/words/stats", async () => {
+  app.get("/words/stats", auth, async (request: any) => {
+    const userId = request.user.id as number;
     const [total, totalStudied, totalStars, avgStars] = await Promise.all([
-      prisma.word.count(),
-      prisma.word.count({ where: { studied: true } }),
-      prisma.word.aggregate({ _sum: { stars: true } }),
-      prisma.word.aggregate({ _avg: { stars: true } }),
+      prisma.word.count({ where: { userId } }),
+      prisma.word.count({ where: { userId, studied: true } }),
+      prisma.word.aggregate({ where: { userId }, _sum: { stars: true } }),
+      prisma.word.aggregate({ where: { userId }, _avg: { stars: true } }),
     ]);
 
     return {
@@ -60,16 +73,18 @@ export async function wordRoutes(app: FastifyInstance) {
   });
 
   // GET /words/random — random word, prioritizing lower stars
-  app.get("/words/random", async () => {
-    const count = await prisma.word.count({ where: { studied: false } });
+  app.get("/words/random", auth, async (request: any) => {
+    const userId = request.user.id as number;
+    const count = await prisma.word.count({ where: { userId, studied: false } });
     if (count === 0) return null;
 
     const minStars = await prisma.word.aggregate({
-      where: { studied: false },
+      where: { userId, studied: false },
       _min: { stars: true },
     });
     const lowStarWords = await prisma.word.findMany({
       where: {
+        userId,
         studied: false,
         stars: { lte: (minStars._min.stars ?? 0) + 1 },
       },
@@ -80,7 +95,8 @@ export async function wordRoutes(app: FastifyInstance) {
   });
 
   // POST /words — add a new word
-  app.post<{ Body: { text: string } }>("/words", async (request, reply) => {
+  app.post<{ Body: { text: string } }>("/words", auth, async (request: any, reply) => {
+    const userId = request.user.id as number;
     const { text } = request.body;
 
     if (!text || text.trim().length === 0) {
@@ -89,8 +105,8 @@ export async function wordRoutes(app: FastifyInstance) {
 
     const normalized = text.trim().toLowerCase();
 
-    const existing = await prisma.word.findUnique({
-      where: { text: normalized },
+    const existing = await prisma.word.findFirst({
+      where: { text: normalized, userId },
     });
 
     if (existing) {
@@ -116,6 +132,7 @@ export async function wordRoutes(app: FastifyInstance) {
       data: {
         text: normalized,
         studied: false,
+        userId,
       },
     });
 
@@ -124,7 +141,9 @@ export async function wordRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string }; Body: { studied: boolean } }>(
     "/words/:id/studied",
-    async (request, reply) => {
+    auth,
+    async (request: any, reply) => {
+      const userId = request.user.id as number;
       const id = parseInt(request.params.id);
 
       if (isNaN(id)) {
@@ -135,29 +154,33 @@ export async function wordRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Field 'studied' must be boolean" });
       }
 
-      try {
-        const word = await prisma.word.update({
-          where: { id },
-          data: { studied: request.body.studied },
-        });
-        return word;
-      } catch {
+      const word = await prisma.word.findFirst({ where: { id, userId } });
+      if (!word) {
         return reply.status(404).send({ error: "Word not found" });
       }
+
+      const updated = await prisma.word.update({
+        where: { id },
+        data: { studied: request.body.studied },
+      });
+
+      return updated;
     }
   );
 
   // PATCH /words/:id/repeat — add star only if studied
   app.patch<{ Params: { id: string } }>(
     "/words/:id/repeat",
-    async (request, reply) => {
+    auth,
+    async (request: any, reply) => {
+      const userId = request.user.id as number;
       const id = parseInt(request.params.id);
 
       if (isNaN(id)) {
         return reply.status(400).send({ error: "Invalid word ID" });
       }
 
-      const existing = await prisma.word.findUnique({ where: { id } });
+      const existing = await prisma.word.findFirst({ where: { id, userId } });
 
       if (!existing) {
         return reply.status(404).send({ error: "Word not found" });
@@ -184,19 +207,22 @@ export async function wordRoutes(app: FastifyInstance) {
   // DELETE /words/:id — remove a word
   app.delete<{ Params: { id: string } }>(
     "/words/:id",
-    async (request, reply) => {
+    auth,
+    async (request: any, reply) => {
+      const userId = request.user.id as number;
       const id = parseInt(request.params.id);
 
       if (isNaN(id)) {
         return reply.status(400).send({ error: "Invalid word ID" });
       }
 
-      try {
-        await prisma.word.delete({ where: { id } });
-        return reply.status(204).send();
-      } catch {
+      const existing = await prisma.word.findFirst({ where: { id, userId } });
+      if (!existing) {
         return reply.status(404).send({ error: "Word not found" });
       }
+
+      await prisma.word.delete({ where: { id } });
+      return reply.status(204).send();
     }
   );
 }
