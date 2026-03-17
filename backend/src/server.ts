@@ -3,12 +3,11 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { authRoutes } from "./routes/auth.js";
 import { wordRoutes } from "./routes/words.js";
+import { env } from "./env/index.js";
 
 const app = Fastify({ logger: true });
 
-app.register(jwt, {
-  secret: process.env.JWT_SECRET || "catalogo-dev-secret",
-});
+app.register(jwt, { secret: env.JWT_SECRET });
 
 app.decorate("authenticate", async function (request, reply) {
   try {
@@ -18,9 +17,7 @@ app.decorate("authenticate", async function (request, reply) {
   }
 });
 
-app.register(cors, {
-  origin: "http://localhost:5173",
-});
+app.register(cors);
 
 app.register(authRoutes);
 app.register(wordRoutes);
@@ -29,8 +26,8 @@ app.get("/health", async () => ({ status: "ok" }));
 
 const start = async () => {
   try {
-    await app.listen({ port: 3333, host: "0.0.0.0" });
-    console.log("Server running on http://localhost:3333");
+    await app.listen({ port: env.PORT, host: "0.0.0.0" });
+    console.log("Server running on http://localhost:" + env.PORT);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

@@ -4,11 +4,12 @@ services:
     container_name: catalogo-palavras-db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - '${DB_PORT}:5432'
     environment:
-      POSTGRES_USER: catalogo
-      POSTGRES_PASSWORD: catalogo123
-      POSTGRES_DB: catalogo_palavras
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_DB_HOST=${DB_HOST}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
 
