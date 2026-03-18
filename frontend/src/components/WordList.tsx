@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FiPause, FiPlay } from "react-icons/fi";
 import toast from "react-hot-toast";
 import {
   useWords,
@@ -29,6 +30,8 @@ export function WordList() {
   const [order, setOrder] = useState<SortOrder>("desc");
   const [filter, setFilter] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [playingWordId, setPlayingWordId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data: words = [], isLoading } = useWords(sort, order);
   const repeatWord = useRepeatWord();
@@ -104,6 +107,48 @@ export function WordList() {
   const sortIndicator = (field: SortField) => {
     if (sort !== field) return "";
     return order === "asc" ? " ^" : " v";
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePlayAudio = (wordId: number, audioUrl?: string) => {
+    if (!audioUrl) {
+      toast("Sem audio disponivel para esta palavra.");
+      return;
+    }
+
+    if (playingWordId === wordId && audioRef.current) {
+      audioRef.current.pause();
+      setPlayingWordId(null);
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    setPlayingWordId(wordId);
+
+    audio.onended = () => setPlayingWordId(null);
+    audio.onerror = () => {
+      setPlayingWordId(null);
+      toast.error("Falha ao reproduzir audio.");
+    };
+
+    audio.play().catch(() => {
+      setPlayingWordId(null);
+      toast.error("Falha ao reproduzir audio.");
+    });
   };
 
   if (isLoading) {
@@ -182,9 +227,20 @@ export function WordList() {
                       key={word.id}
                       className="group flex items-center gap-3 bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 rounded-lg px-4 py-3 transition-colors"
                     >
-                      <span className="text-zinc-100 font-medium flex-1 text-left">
-                        {word.text}
-                      </span>
+                      <div className="flex-1 text-left">
+                        <span className="text-zinc-100 font-medium">{word.text}</span>
+                        {(word.phonetic || word.audioUrls.length > 0) && (
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                            {word.partOfSpeech && (
+                              <span className="text-zinc-400/90">{word.partOfSpeech}</span>
+                            )}
+                            {word.phonetic && <span>{word.phonetic}</span>}
+                            {word.audioUrls.length > 0 && (
+                              <span>{word.audioUrls.length} audio(s)</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {badge && (
                         <span
                           className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border font-medium hidden sm:inline ${badge.className}`}
@@ -202,6 +258,13 @@ export function WordList() {
                           </span>
                         )}
                       </span>
+                      <button
+                        onClick={() => handlePlayAudio(word.id, word.audioUrls[0])}
+                        title="Ouvir pronunciacao"
+                        className="px-2.5 py-1 rounded-md text-xs bg-zinc-700/50 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                      >
+                        {playingWordId === word.id ? <FiPause className="inline" /> : <FiPlay className="inline" />}
+                      </button>
                       <button
                         onClick={() => handleSetStudied(word.id, word.text, true)}
                         className="px-2.5 py-1 rounded-md text-xs bg-zinc-700/50 text-zinc-300 hover:bg-emerald-500/30 hover:text-emerald-200 transition-colors"
@@ -246,9 +309,20 @@ export function WordList() {
                       key={word.id}
                       className="group flex items-center gap-3 bg-zinc-800/40 hover:bg-zinc-800/70 border border-zinc-700/30 rounded-lg px-4 py-3 transition-colors"
                     >
-                      <span className="text-zinc-100 font-medium flex-1 text-left">
-                        {word.text}
-                      </span>
+                      <div className="flex-1 text-left">
+                        <span className="text-zinc-100 font-medium">{word.text}</span>
+                        {(word.phonetic || word.audioUrls.length > 0) && (
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                            {word.partOfSpeech && (
+                              <span className="text-zinc-400/90">{word.partOfSpeech}</span>
+                            )}
+                            {word.phonetic && <span>{word.phonetic}</span>}
+                            {word.audioUrls.length > 0 && (
+                              <span>{word.audioUrls.length} audio(s)</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {badge && (
                         <span
                           className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border font-medium hidden sm:inline ${badge.className}`}
@@ -266,6 +340,13 @@ export function WordList() {
                           </span>
                         )}
                       </span>
+                      <button
+                        onClick={() => handlePlayAudio(word.id, word.audioUrls[0])}
+                        title="Ouvir pronunciacao"
+                        className="px-2.5 py-1 rounded-md text-xs bg-zinc-700/50 hover:bg-zinc-700 text-zinc-300 transition-colors"
+                      >
+                        {playingWordId === word.id ? <FiPause className="inline" /> : <FiPlay className="inline" />}
+                      </button>
                       <button
                         onClick={() => handleSetStudied(word.id, word.text, false)}
                         className="px-2.5 py-1 rounded-md text-xs bg-emerald-500/20 text-emerald-300 hover:bg-zinc-700 hover:text-zinc-300 transition-colors"

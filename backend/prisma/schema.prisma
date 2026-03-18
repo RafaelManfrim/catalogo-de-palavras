@@ -12,6 +12,9 @@ model Word {
   text      String
   stars     Int      @default(0)
   studied   Boolean  @default(false)
+  phonetic  String?
+  partOfSpeech String? @map("part_of_speech")
+  audioUrls String[] @default([]) @map("audio_urls")
   userId    Int      @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")

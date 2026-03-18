@@ -5,6 +5,9 @@ export interface Word {
   text: string;
   stars: number;
   studied: boolean;
+  phonetic: string | null;
+  partOfSpeech: string | null;
+  audioUrls: string[];
   createdAt: string;
   updatedAt: string;
 }

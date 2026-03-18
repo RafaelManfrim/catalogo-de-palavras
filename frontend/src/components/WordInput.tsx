@@ -36,11 +36,22 @@ export function WordInput() {
     if (!text) return;
 
     addWord.mutate(text, {
-      onSuccess: () => {
+      onSuccess: (word) => {
         if (exactMatch?.studied) {
           toast.success(`"${text.toLowerCase()}" repetida com sucesso (+1 estrela).`);
         } else {
-          toast.success(`"${text.toLowerCase()}" adicionada.`);
+          const extras = [
+            word.partOfSpeech ? `classe: ${word.partOfSpeech}` : null,
+            word.phonetic ? `fonetica: ${word.phonetic}` : null,
+            word.audioUrls.length > 0 ? `${word.audioUrls.length} audio(s)` : null,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+          toast.success(
+            extras
+              ? `"${text.toLowerCase()}" adicionada (${extras}).`
+              : `"${text.toLowerCase()}" adicionada.`
+          );
         }
         setValue("");
         setShowDropdown(false);

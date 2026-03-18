@@ -1,6 +1,62 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 
+type DictionaryEntry = {
+  phonetic?: string;
+  phonetics?: Array<{ text?: string; audio?: string }>;
+  meanings?: Array<{ partOfSpeech?: string }>;
+};
+
+async function fetchDictionaryMetadata(term: string) {
+  try {
+    const response = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term)}`
+    );
+
+    if (!response.ok) {
+      return {
+        phonetic: null as string | null,
+        partOfSpeech: null as string | null,
+        audioUrls: [] as string[],
+      };
+    }
+
+    const data = (await response.json()) as DictionaryEntry[];
+    if (!Array.isArray(data) || data.length === 0) {
+      return {
+        phonetic: null as string | null,
+        partOfSpeech: null as string | null,
+        audioUrls: [] as string[],
+      };
+    }
+
+    const entry = data[0];
+    const phonetic =
+      entry.phonetic ||
+      entry.phonetics?.find((item) => item.text && item.text.trim().length > 0)?.text ||
+      null;
+
+    const partOfSpeech =
+      entry.meanings?.find((meaning) => meaning.partOfSpeech)?.partOfSpeech || null;
+
+    const audioUrls = Array.from(
+      new Set(
+        (entry.phonetics || [])
+          .map((item) => item.audio?.trim())
+          .filter((audio): audio is string => Boolean(audio))
+      )
+    );
+
+    return { phonetic, partOfSpeech, audioUrls };
+  } catch {
+    return {
+      phonetic: null as string | null,
+      partOfSpeech: null as string | null,
+      audioUrls: [] as string[],
+    };
+  }
+}
+
 export async function wordRoutes(app: FastifyInstance) {
   const auth = { preHandler: app.authenticate };
 
@@ -128,10 +184,15 @@ export async function wordRoutes(app: FastifyInstance) {
       return reply.status(200).send(repeatedWord);
     }
 
+    const metadata = await fetchDictionaryMetadata(normalized);
+
     const word = await prisma.word.create({
       data: {
         text: normalized,
         studied: false,
+        phonetic: metadata.phonetic,
+        partOfSpeech: metadata.partOfSpeech,
+        audioUrls: metadata.audioUrls,
         userId,
       },
     });

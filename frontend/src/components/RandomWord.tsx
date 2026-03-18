@@ -70,12 +70,18 @@ export function RandomWord() {
       {word ? (
         <div className="text-center py-4">
           <div
-            className={`text-2xl sm:text-3xl font-bold mb-3 transition-all ${
-              revealed ? "text-zinc-100" : "text-zinc-100 blur-md cursor-pointer select-none"
-            }`}
+            className={`flex gap-2 items-center justify-center transition-all ${!revealed && "blur-md cursor-pointer select-none"}`}
             onClick={() => setRevealed(true)}
           >
-            {word.text}
+            <span className="text-2xl sm:text-3xl font-bold text-zinc-100">
+              {word.text}
+            </span>
+            <span
+              className={`text-sm tabular-nums ${starLevel(word.stars)}`}
+            >
+              {"*".repeat(Math.min(word.stars, 10))}{" "}
+              <span className="text-zinc-500">{word.stars}</span>
+            </span>
           </div>
 
           {!revealed && (
@@ -85,13 +91,20 @@ export function RandomWord() {
           )}
 
           {revealed && (
-            <div className="flex items-center justify-center gap-3 mt-2">
-              <span
-                className={`text-sm tabular-nums ${starLevel(word.stars)}`}
-              >
-                {"*".repeat(Math.min(word.stars, 10))}{" "}
-                <span className="text-zinc-500">{word.stars}</span>
-              </span>
+            <div className="space-y-2">
+              <div className="text-xs text-zinc-500 flex flex-wrap items-center justify-center gap-2">
+                {word.partOfSpeech && <span className="text-zinc-400/90">{word.partOfSpeech}</span>}
+                {word.phonetic && <span>{word.phonetic}</span>}
+              </div>
+              {(word.phonetic || word.audioUrls.length > 0) && (
+                <div className="text-xs text-zinc-500 flex flex-wrap items-center justify-center gap-2">
+                  {word.audioUrls.slice(0, 2).map((audioUrl) => (
+                    <audio key={audioUrl} controls preload="none" className="h-7">
+                      <source src={audioUrl} />
+                    </audio>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={handleMarkStudiedAndNext}
                 className="px-4 py-1.5 rounded-md text-sm bg-violet-600/80 hover:bg-violet-500 text-white transition-colors"
